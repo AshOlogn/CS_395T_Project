@@ -1,46 +1,57 @@
 #include <stdio.h>
 #include "pin.H"
 
-#define WINDOW_LENGTH 100
+#define WINDOW_LENGTH 32
 
-void appendIP(VOID *ip);
+void appendRTN(RTN rtn);
 void printTrace();
-VOID Instruction(INS ins, VOID *v);
+VOID Routine(RTN rtn, VOID *v);
 
 //out file
 FILE* outfile;
 
 //sliding window of instruction addresses
 static int COUNTER = 0;
-void* ip_window[WINDOW_LENGTH];
+static UINT64 ins_index = 0;
+UINT64 routine_window[WINDOW_LENGTH];
 
-void appendIP(VOID *ip) {
-  ip_window[(COUNTER++) % WINDOW_LENGTH] = ip;
+//insert routine address into sliding window
+void appendRTN(RTN rtn) {
+  routine_window[(COUNTER++) % WINDOW_LENGTH] = (UINT64) RTN_Address(rtn);
 }
 
 void printTrace() {
 
-  fprintf(outfile, "MEMORY ACCESS:\n");
+  fprintf(outfile, "MEMORY ACCESS (ins %lu):\n", ins_index);
   if(COUNTER <= WINDOW_LENGTH) {
 
     for(int i = 0; i < COUNTER; i++)
-      fprintf(outfile, "%p\n", ip_window[i]);
+      fprintf(outfile, "%lu\n", routine_window[i]);
 
   } else {
   
     for(int i = COUNTER; i < COUNTER + WINDOW_LENGTH; i++)
-      fprintf(outfile, "%p\n", ip_window[i % WINDOW_LENGTH]);
+      fprintf(outfile, "%lu\n", routine_window[i % WINDOW_LENGTH]);
   }
 }
 
-VOID Instruction(INS ins, VOID *v) {
+VOID Routine(RTN rtn, VOID *v) {
   
-  //insert ip into sliding window for ALL instructions
-  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)appendIP, IARG_INST_PTR, IARG_END);
+  //open routine to read instructions
+  RTN_Open(rtn);
 
-  if(INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins)) {
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printTrace, IARG_END);
+  //each instruction that is a memory reference triggers data write
+  for(INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
+  
+    if(INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins)) {
+      INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printTrace, IARG_END);
+    }
+
+    ins_index++;
   }
+
+  RTN_Close(rtn);
+  appendRTN(rtn);
 }
 
 
@@ -52,16 +63,19 @@ VOID Fini(INT32 code, VOID *v) {
 }
 
 int main(int argc, char *argv[]) {
-  
+ 
+  PIN_InitSymbols(); 
   PIN_Init(argc, argv);
-  outfile = fopen("cs_395t.out", "w");
 
-  INS_AddInstrumentFunction(Instruction, 0);
+  outfile = fopen("cs_395t_rou.out", "w");
+
+  RTN_AddInstrumentFunction(Routine, 0);
   PIN_AddFiniFunction(Fini, 0);
-  
+
   //begin program
   PIN_StartProgram();  
 
+  return 0;
 }
 
 
