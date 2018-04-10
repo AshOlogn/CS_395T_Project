@@ -3,6 +3,8 @@
 
 #define WINDOW_LENGTH 32
 
+
+RTN global_routine;
 void appendRTN(RTN rtn);
 void printTrace();
 VOID Routine(RTN rtn, VOID *v);
@@ -11,8 +13,7 @@ VOID Routine(RTN rtn, VOID *v);
 FILE* outfile;
 
 //sliding window of instruction addresses
-static int COUNTER = 0;
-static UINT64 ins_index = 0;
+int COUNTER = 0;
 UINT64 routine_window[WINDOW_LENGTH];
 
 //insert routine address into sliding window
@@ -22,7 +23,7 @@ void appendRTN(RTN rtn) {
 
 void printTrace() {
 
-  fprintf(outfile, "MEMORY ACCESS (ins %lu):\n", ins_index);
+  fprintf(outfile, "MEMORY ACCESS (rtn %s):\n", RTN_Name(global_routine).c_str());
   if(COUNTER <= WINDOW_LENGTH) {
 
     for(int i = 0; i < COUNTER; i++)
@@ -37,6 +38,7 @@ void printTrace() {
 
 VOID Routine(RTN rtn, VOID *v) {
   
+  global_routine = rtn;
   //open routine to read instructions
   RTN_Open(rtn);
 
@@ -44,10 +46,8 @@ VOID Routine(RTN rtn, VOID *v) {
   for(INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
   
     if(INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins)) {
-      INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printTrace, IARG_END);
+      INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)printTrace, IARG_END);
     }
-
-    ins_index++;
   }
 
   RTN_Close(rtn);
