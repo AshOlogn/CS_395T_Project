@@ -1,73 +1,106 @@
-#include <stdio.h>
+#include <cstdint>
+#include <cstdlib>
+#include <string>
+#include <sstream>
 #include "pin.H"
+#include "pin_hash.h"
 
-#define WINDOW_LENGTH 32
+#define WINDOW_LENGTH 8
 
-
-RTN global_routine;
-void appendRTN(RTN rtn);
-void printTrace();
+VOID appendRTN(ADDRINT rtn_addr);
+std::string to_string(UINT64 rtn_addr);
+std::string toHistoryString();
 VOID Routine(RTN rtn, VOID *v);
 
+
 //out file
-FILE* outfile;
 
 //sliding window of instruction addresses
 int COUNTER = 0;
 UINT64 routine_window[WINDOW_LENGTH];
 
+
+//hash map pairing unique load instruction to set of unique call paths
+static PinHashTable* hash_map = NULL;
+
+
 //insert routine address into sliding window
-void appendRTN(RTN rtn) {
-  routine_window[(COUNTER++) % WINDOW_LENGTH] = (UINT64) RTN_Address(rtn);
+VOID appendRTN(ADDRINT rtn_addr) {
+  routine_window[COUNTER % WINDOW_LENGTH] = (UINT64) rtn_addr;
+  COUNTER++;
 }
 
-void printTrace() {
 
-  fprintf(outfile, "MEMORY ACCESS (rtn %s):\n", RTN_Name(global_routine).c_str());
+//converts routine address into string form
+std::string to_string(UINT64 rtn_addr) {
+  ostringstream stream;
+  stream << rtn_addr;
+  std::string str = stream.str();
+  return str;
+}
+
+
+//generate string representation of function call history 
+std::string toHistoryString() {
+
+  std::string history = "";
+
   if(COUNTER <= WINDOW_LENGTH) {
 
     for(int i = 0; i < COUNTER; i++)
-      fprintf(outfile, "%lu\n", routine_window[i]);
+      history.append(to_string(routine_window[i]));
 
   } else {
   
     for(int i = COUNTER; i < COUNTER + WINDOW_LENGTH; i++)
-      fprintf(outfile, "%lu\n", routine_window[i % WINDOW_LENGTH]);
+      history.append(to_string(routine_window[i % WINDOW_LENGTH]));
   }
+
+  return history;
 }
 
+
+//add instruction-history mapping to hash map
+VOID insertHistory(ADDRINT ins_addr) {
+  std::string history = toHistoryString();
+  hash_map->insert((uint64_t) ins_addr, history);
+}
+
+//every time routine is called, extract memory load instructions
 VOID Routine(RTN rtn, VOID *v) {
   
-  global_routine = rtn;
   //open routine to read instructions
   RTN_Open(rtn);
+
+  RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR) appendRTN, IARG_ADDRINT, RTN_Address(rtn), IARG_END);
+  //appendRTN(RTN_Address(rtn));
 
   //each instruction that is a memory reference triggers data write
   for(INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
   
-    if(INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins)) {
-      INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)printTrace, IARG_END);
+    //call insertHistory
+    if(INS_IsMemoryRead(ins)) {
+      INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) insertHistory, IARG_INST_PTR, IARG_END);
     }
   }
 
   RTN_Close(rtn);
-  appendRTN(rtn);
 }
 
 
 VOID Fini(INT32 code, VOID *v) {
-
-  fprintf(outfile, "#eof\n");
-  fclose(outfile);
+  
+  hash_map->print_histories();
 
 }
 
 int main(int argc, char *argv[]) {
- 
+
   PIN_InitSymbols(); 
   PIN_Init(argc, argv);
 
-  outfile = fopen("cs_395t_rou.out", "w");
+  //initialize hash map
+  hash_map = new PinHashTable(8192);
 
   RTN_AddInstrumentFunction(Routine, 0);
   PIN_AddFiniFunction(Fini, 0);
@@ -77,9 +110,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
-
-
-
-
 
