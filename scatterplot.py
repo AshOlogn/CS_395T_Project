@@ -1,3 +1,4 @@
+import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib
@@ -5,7 +6,7 @@ import matplotlib
 x = []
 y = []
 
-with open('results.txt') as f:
+with open(sys.argv[1]) as f:
     for line in f:
         data = line.split()
         y.append(int(data[0]))

@@ -4,8 +4,9 @@
 #include <sstream>
 #include "pin.H"
 #include "pin_hash.h"
+#include "pin_hash2.h"
 
-#define WINDOW_LENGTH 8
+#define WINDOW_LENGTH 32
 
 VOID appendRTN(ADDRINT rtn_addr);
 std::string to_string(UINT64 rtn_addr);
@@ -22,6 +23,7 @@ UINT64 routine_window[WINDOW_LENGTH];
 
 //hash map pairing unique load instruction to set of unique call paths
 static PinHashTable* hash_map = NULL;
+static PinHashTableReverse* hash_map_reverse = NULL;
 
 
 //insert routine address into sliding window
@@ -64,6 +66,7 @@ std::string toHistoryString() {
 VOID insertHistory(ADDRINT ins_addr) {
   std::string history = toHistoryString();
   hash_map->insert((uint64_t) ins_addr, history);
+  hash_map_reverse->insert(history, (uint64_t) ins_addr);
 }
 
 //every time routine is called, extract memory load instructions
@@ -91,6 +94,7 @@ VOID Routine(RTN rtn, VOID *v) {
 VOID Fini(INT32 code, VOID *v) {
   
   hash_map->print_histories();
+  hash_map_reverse->print_histories();
 
 }
 
@@ -101,6 +105,7 @@ int main(int argc, char *argv[]) {
 
   //initialize hash map
   hash_map = new PinHashTable(8192);
+  hash_map_reverse = new PinHashTableReverse(8192);
 
   RTN_AddInstrumentFunction(Routine, 0);
   PIN_AddFiniFunction(Fini, 0);
