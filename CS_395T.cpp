@@ -6,7 +6,7 @@
 #include "pin_hash.h"
 #include "pin_hash2.h"
 
-#define WINDOW_LENGTH 32
+#define WINDOW_LENGTH 8
 
 VOID appendRTN(ADDRINT rtn_addr);
 std::string to_string(UINT64 rtn_addr);
