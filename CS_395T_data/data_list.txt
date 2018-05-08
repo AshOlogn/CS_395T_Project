@@ -1,0 +1,10 @@
+blackscholes
+bodytrack
+facesim
+ferret
+fluidanimate
+freqmine
+raytrace
+swaptions
+vips
+x264
