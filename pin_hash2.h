@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <string>
 
+//This file includes code for a hash table that maps a function call history
+//to the set of memory load addresses that immediately succeeded it
+
 //Holds instruction information in Hash Set
 class ReverseSetNode {
 

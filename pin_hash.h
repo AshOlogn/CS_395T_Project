@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <string>
 
+//This file includes code for a hash table that maps a memory load address
+//to the set of function call histories that led up to that load
+
 //Holds string information in Hash Set
 class SetNode {
 
